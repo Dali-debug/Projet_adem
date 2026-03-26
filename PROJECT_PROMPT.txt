@@ -1,8 +1,3 @@
-================================================================================
-PROMPT DE REPRODUCTION DE PROJET — NILM par Modèle de Markov Caché (HMM)
-Auteur : Adam BEN RHAIEM — Projet PFE ACTIA
-================================================================================
-
 Tu dois implémenter un projet complet de NILM (Non-Intrusive Load Monitoring —
 Surveillance Non-Intrusive de la Charge Électrique) en Python. L'objectif est de
 désagréger la consommation électrique totale d'un foyer (mesurée sur un seul
@@ -20,7 +15,7 @@ et évaluation.
 SECTION 1 — CONTEXTE ET DONNÉES
 ================================================================================
 
-Jeux de données utilisés (liens dans Datasets/dataset.txt) :
+Jeux de données utilisés (dans Processed_Data_CSV) :
 
 - REFIT (Real world Energy Flexible Intelligent metering dataset) :
   https://pureportal.strath.ac.uk/en/datasets/refit-electrical-load-measurements-cleaned
@@ -28,14 +23,12 @@ Jeux de données utilisés (liens dans Datasets/dataset.txt) :
   Fréquence d'échantillonnage : 1 mesure toutes les 8 secondes.
   Format : CSV par maison, colonnes = [Time, Aggregate, Appliance1, Appliance2, ...]
 
-- AMPds (Almanac of Minutely Power dataset) :
-  https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/FIE0S4
-  Mesures minutieuses dans une maison canadienne sur 2 ans.
 
 Chaque fichier CSV contient :
-  - Une colonne de temps (horodatage).
+  - Une colonne de temps (Time).
+  - Une colonne Unix
   - Une colonne "Aggregate" = consommation totale du foyer en Watts.
-  - Des colonnes par appareil = consommation individuelle en Watts
+  - Des colonnes par appareil = consommation individuelle en Watts (9 appareils chaque maison)
     (utilisées comme vérité terrain pour l'entraînement et l'évaluation).
 
 Structure du dossier de données attendue :
@@ -52,12 +45,14 @@ SECTION 2 — ARCHITECTURE DU PROJET
 Organise le projet selon l'arborescence suivante :
 
   Projet_NILM/
-  ├── Datasets/
-  │   └── dataset.txt                    ← Liens vers les jeux de données
+  ├── Processed_Data_CSV/
+  │   ├── House_1.csv
+  │   ├── House_2.csv
+  │   └── ... (jusqu'à House_21.csv)              (dèjà existante dans le projet)
   ├── Preprocessing/
   │   └── Algorithms/
-  │       ├── hampel_filter.py           ← Suppression des valeurs aberrantes
-  │       └── interpolation.py           ← Comparaison des méthodes d'interpolation
+  │       ├── preprocessing.py (hampel_filter ← Suppression des valeurs aberrantes /interpolation ← Comparaison des méthodes d'interpolation)        
+  │       └── check_preprocessing.py           
   ├── Event_Detection/
   │   └── Algorithms/
   │       ├── steady_states.py           ← Détection Hart 1985 (états stables)
