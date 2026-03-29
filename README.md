@@ -15,6 +15,7 @@
    - [HMM-based Load Disaggregation (Désagrégation)](#35-hmm-based-load-disaggregation-désagrégation)
    - [Documents PDF de référence](#36-documents-pdf-de-référence)
 4. [Flux de travail global (workflow end-to-end)](#4-flux-de-travail-global-workflow-end-to-end)
+5. [Pipeline REFIT NILM — Dossier `Projet_NILM`](#5-pipeline-refit-nilm--dossier-projet_nilm)
 
 ---
 
@@ -42,6 +43,17 @@ Projet_adem/
 │
 ├── README.md                                           ← Ce fichier de documentation
 ├── PFE_Actia (3).pdf                                   ← Rapport PFE complet (PDF)
+│
+├── Processed_Data_CSV/                                 ← Dossier pour les CSV REFIT
+│   └── README.md                                       ← Instructions de téléchargement des données
+│
+├── Projet_NILM/                                        ← Pipeline REFIT NILM autonome (voir section 5)
+│   ├── run_nilm.py                                     ← Point d'entrée principal
+│   ├── preprocessing.py                                ← Chargement et nettoyage des CSV
+│   ├── train_hmm.py                                    ← Entraînement des HMM gaussiens
+│   ├── disaggregate.py                                 ← Décodage des états + graphiques
+│   ├── refit_metadata.py                               ← Correspondances colonnes ↔ appareils
+│   └── requirements.txt                                ← Dépendances Python
 │
 └── Adam BEN RHAIEM-HMM-based Energy Disaggregation/
     │
@@ -479,3 +491,211 @@ Le projet suit un pipeline en **5 grandes étapes** :
 ### Principe fondamental du NILM (SSHMM)
 
 Le **Super-State HMM** modélise simultanément tous les appareils d'un foyer. Chaque **super-état** représente une combinaison d'états individuels (ex : réfrigérateur=ON, lave-vaisselle=OFF, machine à laver=cycle1). La **puissance observée** est la somme des puissances individuelles, à laquelle s'ajoute un bruit de mesure. L'algorithme de Viterbi trouve, à chaque instant, le super-état le plus probable compte tenu de la puissance agrégée mesurée, permettant ainsi de **remonter** à la consommation de chaque appareil.
+
+---
+
+## 5. Pipeline REFIT NILM — Dossier `Projet_NILM`
+
+Le dossier `Projet_NILM/` contient un pipeline complet et autonome pour la **désagrégation de charge non-intrusive (NILM)** appliqué au dataset REFIT, basé sur des **modèles de Markov cachés gaussiens (Gaussian HMM)**.
+
+### 5.1 Prérequis et installation
+
+**Python ≥ 3.10** est recommandé. Installez les dépendances depuis le dossier `Projet_NILM/` :
+
+```bash
+cd Projet_NILM
+pip install -r requirements.txt
+```
+
+| Bibliothèque | Rôle |
+|---|---|
+| `numpy` | Calculs numériques |
+| `pandas` | Manipulation des données |
+| `matplotlib` | Génération des graphiques |
+| `scikit-learn` | Normalisation, métriques |
+| `hmmlearn` | Entraînement et décodage des HMM gaussiens |
+| `ruptures` | Segmentation binaire (optionnel) |
+
+**Données REFIT** : placer les fichiers CSV REFIT (ex. `House_3.csv`) dans le dossier `Processed_Data_CSV/` à la racine du projet. Consulter `Processed_Data_CSV/README.md` pour les instructions de téléchargement.
+
+Structure attendue de chaque CSV :
+```
+Time, Unix, Aggregate, Appliance1, Appliance2, …, Appliance9
+```
+
+---
+
+### 5.2 Utilisation — `run_nilm.py`
+
+`run_nilm.py` est le **point d'entrée principal** du pipeline. Il orchestre les étapes suivantes : chargement et pré-traitement des données, entraînement des HMM, décodage des états, génération des graphiques et affichage du résumé.
+
+Toutes les commandes ci-dessous sont exécutées **depuis le dossier `Projet_NILM/`**.
+
+#### Pipeline complet (entraînement + désagrégation) — mode par défaut
+
+```bash
+python run_nilm.py --house ../Processed_Data_CSV/House_3.csv
+```
+
+#### Entraînement seul
+
+```bash
+python run_nilm.py --house ../Processed_Data_CSV/House_3.csv --mode train
+```
+
+#### Désagrégation seule (les modèles doivent déjà exister dans `models/`)
+
+```bash
+python run_nilm.py --house ../Processed_Data_CSV/House_3.csv --mode disaggregate
+```
+
+#### Mode NILM pur (signal agrégé uniquement, sans sous-comptage)
+
+```bash
+python run_nilm.py --house ../Processed_Data_CSV/House_3.csv --nilm
+```
+
+#### Test rapide sur un sous-ensemble de données
+
+```bash
+python run_nilm.py --house ../Processed_Data_CSV/House_3.csv --limit 5000
+```
+
+#### Sélection personnalisée des appareils
+
+```bash
+python run_nilm.py --house ../Processed_Data_CSV/House_3.csv \
+                   --appliances kettle microwave fridge tv
+```
+
+**Options disponibles :**
+
+| Option | Type | Valeur par défaut | Description |
+|---|---|---|---|
+| `--house` | `str` | *(obligatoire)* | Chemin vers le fichier CSV REFIT |
+| `--appliances` | `list` | `kettle microwave fridge tv` | Appareils à traiter |
+| `--mode` | `all / train / disaggregate` | `all` | Étapes du pipeline à exécuter |
+| `--nilm` | flag | désactivé | Mode NILM pur (signal agrégé uniquement) |
+| `--limit` | `int` | aucun | Nombre maximum d'échantillons à traiter |
+| `--no-plot` | flag | désactivé | Désactiver la génération des graphiques |
+| `--n-states` | `int` | selon l'appareil | Nombre d'états cachés HMM (tous les appareils) |
+| `--sample-limit` | `int` | `50000` | Nombre max d'échantillons pour l'entraînement |
+
+**Appareils supportés :** `kettle`, `microwave`, `fridge`, `tv`, `washing_machine`, `dishwasher`, `tumble_dryer`, `toaster`, `freezer`, `computer`.
+
+---
+
+### 5.3 Résultats attendus
+
+#### Sortie console
+
+```
+House 3 appliance map:
+  Appliance1: Toaster
+  Appliance2: Washing Machine
+  ...
+  Appliance8: Fridge-Freezer
+
+Target appliances: ['kettle', 'microwave', 'fridge', 'tv']
+
+=== Training HMMs for House 3 ===
+  Training 'kettle'    (column=Appliance5, states=2) … OK  | means ≈ [0.4, 2245.7]
+  Training 'microwave' (column=Appliance7, states=2) … OK  | means ≈ [0.3, 1102.5]
+  Training 'fridge'    (column=Appliance8, states=3) … OK  | means ≈ [2.1, 48.3, 130.6]
+  Training 'tv'        (column=Appliance6, states=2) … OK  | means ≈ [0.5, 95.2]
+
+Saving models …
+  Saved model → models/3/kettle_hmm.json
+  Saved model → models/3/microwave_hmm.json
+  Saved model → models/3/fridge_hmm.json
+  Saved model → models/3/tv_hmm.json
+
+=== Disaggregating House 3 ===
+
+Loading models …
+
+Decoding states …
+  Decoding states for 'kettle'    (col=Appliance5) … OK  | unique states: ['OFF', 'ON']
+  Decoding states for 'microwave' (col=Appliance7) … OK  | unique states: ['OFF', 'ON']
+  Decoding states for 'fridge'    (col=Appliance8) … OK  | unique states: ['HIGH', 'LOW', 'OFF']
+  Decoding states for 'tv'        (col=Appliance6) … OK  | unique states: ['OFF', 'ON']
+
+--- Evaluation Summary ---
+  kettle         : ON/OFF accuracy = 0.998 (X,XXX,XXX samples)
+  microwave      : ON/OFF accuracy = 0.997 (X,XXX,XXX samples)
+  fridge         : ON/OFF accuracy = 0.963 (X,XXX,XXX samples)
+  tv             : ON/OFF accuracy = 0.982 (X,XXX,XXX samples)
+
+Generating plots …
+  Plot saved → plots/house3_kettle_states.png
+  Plot saved → plots/house3_microwave_states.png
+  Plot saved → plots/house3_fridge_states.png
+  Plot saved → plots/house3_tv_states.png
+
+============================================================
+  STATE SUMMARY — House 3
+============================================================
+           OFF                        ON
+Kettle     X,XXX,XXX  (XX.X%)    XXX  ( X.X%)
+Microwave  X,XXX,XXX  (XX.X%)    XXX  ( X.X%)
+Fridge     X,XXX,XXX  (XX.X%)    XXX  (XX.X%)
+Tv         X,XXX,XXX  (XX.X%)    XXX  (XX.X%)
+============================================================
+```
+
+> **Note :** Les valeurs numériques exactes (moyennes HMM, précisions, pourcentages d'occupation) varient selon la maison choisie et la quantité de données disponibles.
+
+#### Fichiers générés
+
+| Fichier | Emplacement | Description |
+|---|---|---|
+| `<appliance>_hmm.json` | `Projet_NILM/models/<numéro_maison>/` | Paramètres HMM entraînés (π, A, μ, Σ) |
+| `house<N>_<appliance>_states.png` | `Projet_NILM/plots/` | Graphique puissance + états décodés |
+
+**Exemple de structure après exécution :**
+
+```
+Projet_NILM/
+├── models/
+│   └── 3/
+│       ├── kettle_hmm.json
+│       ├── microwave_hmm.json
+│       ├── fridge_hmm.json
+│       └── tv_hmm.json
+└── plots/
+    ├── house3_kettle_states.png
+    ├── house3_microwave_states.png
+    ├── house3_fridge_states.png
+    └── house3_tv_states.png
+```
+
+**Contenu d'un fichier modèle (`kettle_hmm.json`) :**
+
+```json
+{
+  "appliance": "kettle",
+  "n_states": 2,
+  "state_labels": ["OFF", "ON"],
+  "startprob": [0.999, 0.001],
+  "transmat": [[0.999, 0.001], [0.05, 0.95]],
+  "means": [[0.4], [2245.7]],
+  "covars": [[[...]], [[...]]]
+}
+```
+
+**Graphiques générés :** Pour chaque appareil, un fichier PNG contient deux sous-graphiques superposés :
+1. **Courbe de puissance** (en watts) au fil du temps.
+2. **Séquence d'états décodés** (OFF / ON / LOW / HIGH) issue de l'algorithme de Viterbi.
+
+---
+
+### 5.4 Description des fichiers de `Projet_NILM/`
+
+| Fichier | Rôle |
+|---|---|
+| `run_nilm.py` | Point d'entrée principal — orchestre le pipeline complet (entraînement + désagrégation + affichage) |
+| `preprocessing.py` | Chargement des CSV REFIT, nettoyage (valeurs négatives, NaN) et renvoi d'un DataFrame prêt à l'emploi |
+| `train_hmm.py` | Entraînement des HMM gaussiens par appareil (via `hmmlearn`), sauvegarde des modèles en JSON dans `models/` |
+| `disaggregate.py` | Reconstruction des HMM depuis les JSON, décodage des états par Viterbi, génération des graphiques dans `plots/` |
+| `refit_metadata.py` | Dictionnaire de correspondance maison → appareils (colonnes `Appliance1`–`Appliance9` pour chaque maison REFIT) |
+| `requirements.txt` | Liste des dépendances Python à installer |
