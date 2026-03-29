@@ -1,4 +1,6 @@
-data = df.iloc[:3600*24*7,:]
+import numpy as np
+import pandas as pd
+
 class Appliance:
     def __init__(self,name,series,initial_means):
         initial_means.sort()
@@ -35,7 +37,7 @@ class Appliance:
     def calculateClustersMeans(self):
         print("Mean Calculations Started.")
         rows_counter=0;
-        for index, val in self.series.iteritems():
+        for index, val in self.series.items():
             assignedCluster = self.findCluster(val)
             self.calculateClusterMean(assignedCluster,val)
             if(rows_counter%1000000==0):
@@ -83,7 +85,7 @@ class Appliance:
     def getStateTransitions(self):
         i = 0
         temp = [];
-        for index, val in self.clusteredSeries.iteritems():
+        for index, val in self.clusteredSeries.items():
             if(i==0 or temp[i-1][0] != val):
                 temp.append((val,1))
                 i+=1
