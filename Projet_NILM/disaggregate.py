@@ -328,13 +328,14 @@ def run_disaggregation(house_csv: str,
                        limit: int | None = None,
                        plot: bool = True,
                        models_dir: str | None = None,
-                       plots_dir: str | None = None) -> pd.DataFrame:
+                       plots_dir: str | None = None,
+                       train_house_number: int | None = None) -> pd.DataFrame:
     """Full disaggregation pipeline.
 
     Parameters
     ----------
     house_csv : str
-        Path to REFIT house CSV.
+        Path to REFIT house CSV (test/evaluation house).
     target_appliances : list of str, optional
         Defaults to ``["kettle", "microwave", "fridge", "tv"]``.
     nilm_mode : bool
@@ -344,9 +345,15 @@ def run_disaggregation(house_csv: str,
     plot : bool
         Generate and save plots.
     models_dir : str, optional
-        Directory containing the saved model JSON files.
+        Directory containing the saved model JSON files.  When *None* the
+        directory is derived from *train_house_number* (or *house_csv*).
     plots_dir : str, optional
         Directory to write plot PNG files.
+    train_house_number : int, optional
+        House number from which the models were trained.  Used to locate
+        the correct ``models/<train_house_number>/`` directory for cross-house
+        evaluation (train on House 9, test on House 3).  When *None* the
+        house number is derived from *house_csv*.
 
     Returns
     -------
@@ -356,8 +363,17 @@ def run_disaggregation(house_csv: str,
     if target_appliances is None:
         target_appliances = ["kettle", "microwave", "fridge", "tv"]
 
-    house_number = parse_house_number(house_csv)
-    print(f"\n=== Disaggregating House {house_number} ===")
+    test_house_number = parse_house_number(house_csv)
+    # If no explicit train house given, assume same-house evaluation.
+    if train_house_number is None:
+        train_house_number = test_house_number
+
+    cross_house = train_house_number != test_house_number
+    if cross_house:
+        print(f"\n=== Disaggregating House {test_house_number} "
+              f"(models from House {train_house_number}) ===")
+    else:
+        print(f"\n=== Disaggregating House {test_house_number} ===")
 
     # 1. Load and preprocess
     df = preprocess_house(house_csv)
@@ -365,31 +381,34 @@ def run_disaggregation(house_csv: str,
         df = df.iloc[:limit]
         print(f"  Data limited to first {limit} samples.")
 
-    # 2. Load models
+    # 2. Load models (from train house directory)
     print("\nLoading models …")
-    models = load_models(house_number, target_appliances, models_dir=models_dir)
+    models = load_models(train_house_number, target_appliances,
+                         models_dir=models_dir)
     if not models:
         raise RuntimeError(
-            f"No trained models found for House {house_number}. "
+            f"No trained models found for House {train_house_number}. "
             "Run train_hmm.py first."
         )
 
-    # 3. Disaggregate
+    # 3. Disaggregate (column mapping uses test house)
     print("\nDecoding states …")
     if nilm_mode:
-        results = disaggregate_nilm(df, models, house_number, target_appliances)
+        results = disaggregate_nilm(df, models, test_house_number,
+                                    target_appliances)
     else:
-        results = disaggregate_submetering(df, models, house_number,
+        results = disaggregate_submetering(df, models, test_house_number,
                                            target_appliances)
 
     # 4. Evaluate (only meaningful in sub-metering mode)
     if not nilm_mode:
-        evaluate_results(results, df, models, house_number, target_appliances)
+        evaluate_results(results, df, models, test_house_number,
+                         target_appliances)
 
     # 5. Plot
     if plot:
         print("\nGenerating plots …")
-        plot_results(results, target_appliances, house_number,
+        plot_results(results, target_appliances, test_house_number,
                      plots_dir=plots_dir)
 
     return results

@@ -479,3 +479,97 @@ Le projet suit un pipeline en **5 grandes étapes** :
 ### Principe fondamental du NILM (SSHMM)
 
 Le **Super-State HMM** modélise simultanément tous les appareils d'un foyer. Chaque **super-état** représente une combinaison d'états individuels (ex : réfrigérateur=ON, lave-vaisselle=OFF, machine à laver=cycle1). La **puissance observée** est la somme des puissances individuelles, à laquelle s'ajoute un bruit de mesure. L'algorithme de Viterbi trouve, à chaque instant, le super-état le plus probable compte tenu de la puissance agrégée mesurée, permettant ainsi de **remonter** à la consommation de chaque appareil.
+
+---
+
+## 5. Pipeline Projet_NILM — Guide d'utilisation
+
+### 5.1 Installation des dépendances
+
+```bash
+pip install -r Projet_NILM/requirements.txt
+```
+
+### 5.2 Préparer les données
+
+Télécharger les fichiers REFIT et les placer dans `Processed_Data_CSV/` (voir `Processed_Data_CSV/README.md`).
+
+### 5.3 Commandes principales (`run_nilm.py`)
+
+#### Pipeline complet sur une seule maison (train + test sur House 3)
+
+```bash
+cd Projet_NILM
+python run_nilm.py --house ../Processed_Data_CSV/House_3.csv
+```
+
+#### **Cross-house : entraîner sur House 9, tester sur House 3** *(recommandé)*
+
+```bash
+cd Projet_NILM
+python run_nilm.py \
+  --train-house ../Processed_Data_CSV/House_9.csv \
+  --test-house  ../Processed_Data_CSV/House_3.csv
+```
+
+#### Entraînement seul sur House 9
+
+```bash
+python run_nilm.py --train-house ../Processed_Data_CSV/House_9.csv --mode train
+```
+
+#### Désagrégation seule sur House 3 (modèles de House 9 requis)
+
+```bash
+python run_nilm.py \
+  --train-house ../Processed_Data_CSV/House_9.csv \
+  --test-house  ../Processed_Data_CSV/House_3.csv \
+  --mode disaggregate
+```
+
+#### Mode NILM pur (signal agrégé uniquement, sans sous-comptage)
+
+```bash
+python run_nilm.py \
+  --train-house ../Processed_Data_CSV/House_9.csv \
+  --test-house  ../Processed_Data_CSV/House_3.csv \
+  --nilm
+```
+
+#### Test rapide (limiter le nombre d'échantillons)
+
+```bash
+python run_nilm.py \
+  --train-house ../Processed_Data_CSV/House_9.csv \
+  --test-house  ../Processed_Data_CSV/House_3.csv \
+  --limit 5000
+```
+
+### 5.4 Correspondance appareils → colonnes (vérifiée)
+
+Les colonnes CSV REFIT (`Appliance1` … `Appliance9`) correspondent aux appareils
+suivants pour les maisons 3 et 9 :
+
+| Colonne      | House 3           | House 9           |
+|-------------|-------------------|-------------------|
+| Appliance1  | Toaster           | Fridge-Freezer    |
+| Appliance2  | Fridge-Freezer    | Washer Dryer      |
+| Appliance3  | Freezer           | Washing Machine   |
+| Appliance4  | Tumble Dryer      | Dishwasher        |
+| Appliance5  | Dishwasher        | Television Site   |
+| Appliance6  | Washing Machine   | Microwave         |
+| Appliance7  | Television        | Kettle            |
+| Appliance8  | Microwave         | Hi-Fi             |
+| Appliance9  | Kettle            | Electric Heater   |
+
+Le pipeline résout automatiquement les noms canoniques (`kettle`, `microwave`,
+`fridge`, `tv`) vers la bonne colonne pour chaque maison grâce aux alias définis
+dans `refit_metadata.py`. Les variantes gérées incluent par exemple :
+`Fridge-Freezer` → `fridge`, `Television Site` → `tv`.
+
+### 5.5 Exécuter les tests de mapping
+
+```bash
+cd Projet_NILM
+python -m pytest tests/test_mapping.py -v
+```
