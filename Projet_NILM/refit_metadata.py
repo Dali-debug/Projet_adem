@@ -22,11 +22,14 @@ APPLIANCE_ALIASES = {
     "fridge":    ["fridge", "fridge-freezer", "fridge freezer", "fridgefreezer"],
     "tv":        ["television", "tv", "television site"],
     "washing_machine": ["washing machine"],
+    "washer_dryer": ["washer dryer", "washer-dryer"],
     "dishwasher": ["dishwasher"],
     "tumble_dryer": ["tumble dryer", "tumbledryer"],
     "toaster":   ["toaster"],
     "freezer":   ["freezer"],
     "computer":  ["computer", "desktop", "laptop"],
+    "hi_fi":     ["hi-fi", "hifi", "hi fi"],
+    "electric_heater": ["electric heater", "electricheater"],
 }
 
 # Per-house appliance lists.
@@ -56,14 +59,14 @@ HOUSE_APPLIANCES = {
     ],
     3:  [
         "Toaster",
-        "Washing Machine",
-        "Dishwasher",
+        "Fridge-Freezer",
+        "Freezer",
         "Tumble Dryer",
-        "Kettle",
+        "Dishwasher",
+        "Washing Machine",
         "Television",
         "Microwave",
-        "Fridge-Freezer",
-        "Unknown",
+        "Kettle",
     ],
     4:  [
         "Fridge",
@@ -122,14 +125,14 @@ HOUSE_APPLIANCES = {
     ],
     9:  [
         "Fridge-Freezer",
+        "Washer Dryer",
         "Washing Machine",
-        "Washing Machine 2",
         "Dishwasher",
-        "Tumble Dryer",
-        "Kettle",
-        "Television",
+        "Television Site",
         "Microwave",
-        "Unknown",
+        "Kettle",
+        "Hi-Fi",
+        "Electric Heater",
     ],
     10: [
         "Fridge-Freezer",
@@ -270,6 +273,12 @@ def get_appliance_column(house_number: int, target: str) -> str | None:
     str or None
         The CSV column name (``"Appliance1"`` … ``"Appliance9"``) that
         corresponds to the requested appliance, or ``None`` if not found.
+
+    Notes
+    -----
+    Matching is two-pass: an exact (case-insensitive) match is attempted
+    first, then a substring match.  This ensures that e.g. ``"freezer"``
+    resolves to the ``Freezer`` label rather than ``Fridge-Freezer``.
     """
     if house_number not in HOUSE_APPLIANCES:
         raise ValueError(
@@ -278,10 +287,20 @@ def get_appliance_column(house_number: int, target: str) -> str | None:
         )
 
     aliases = APPLIANCE_ALIASES.get(target.lower(), [target.lower()])
-    for idx, label in enumerate(HOUSE_APPLIANCES[house_number]):
-        label_lc = label.lower()
+    labels = HOUSE_APPLIANCES[house_number]
+    labels_lc = [label.lower() for label in labels]
+
+    # First pass: exact match (case-insensitive).
+    # Prevents "freezer" from matching "Fridge-Freezer" before "Freezer".
+    for idx, label_lc in enumerate(labels_lc):
+        if any(alias == label_lc for alias in aliases):
+            return f"Appliance{idx + 1}"
+
+    # Second pass: substring match for multi-word or compound labels.
+    for idx, label_lc in enumerate(labels_lc):
         if any(alias in label_lc for alias in aliases):
             return f"Appliance{idx + 1}"
+
     return None
 
 
