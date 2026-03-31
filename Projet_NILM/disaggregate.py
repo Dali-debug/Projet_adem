@@ -540,6 +540,7 @@ def run_disaggregation(house_csv: str,
 
     df = preprocess_house(
         house_csv,
+        max_rows=limit,
         plot_preprocessing=plot_preprocessing,
         preprocessing_plot_columns=test_columns,
         preprocessing_plots_dir=plots_dir,

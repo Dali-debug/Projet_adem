@@ -81,7 +81,7 @@ def plot_preprocessing_signals(raw_df: pd.DataFrame,
 # Data loading
 # ---------------------------------------------------------------------------
 
-def load_refit_csv(filepath: str) -> pd.DataFrame:
+def load_refit_csv(filepath: str, max_rows: int | None = None) -> pd.DataFrame:
     """Load a REFIT house CSV file and return a clean DataFrame.
 
     The function:
@@ -94,6 +94,8 @@ def load_refit_csv(filepath: str) -> pd.DataFrame:
     ----------
     filepath : str
         Path to the REFIT CSV, e.g. ``Processed_Data_CSV/House_3.csv``.
+    max_rows : int or None
+        If provided, read at most this many raw CSV rows.
 
     Returns
     -------
@@ -101,7 +103,10 @@ def load_refit_csv(filepath: str) -> pd.DataFrame:
         DataFrame indexed by datetime with columns:
         ``[Aggregate, Appliance1, ..., Appliance9]``.
     """
-    df = pd.read_csv(filepath)
+    if max_rows is not None:
+        df = pd.read_csv(filepath, nrows=max_rows)
+    else:
+        df = pd.read_csv(filepath)
 
     # Identify the time column (REFIT uses "Time" or unnamed first column)
     time_col = None
@@ -214,6 +219,7 @@ def preprocess_house(filepath: str,
                      hampel_sigmas: float = 3.0,
                      interp_method: str = "linear",
                      max_gap: int = 10,
+                     max_rows: int | None = None,
                      resample_rule: str = "8s",
                      plot_preprocessing: bool = False,
                      preprocessing_plot_columns: list[str] | None = None,
@@ -243,6 +249,9 @@ def preprocess_house(filepath: str,
         Pandas interpolation method for NaN filling.
     max_gap : int
         Maximum consecutive NaN run to interpolate.
+    max_rows : int or None
+        If provided, read at most this many rows from the CSV before
+        preprocessing. Useful for fast smoke tests.
     resample_rule : str
         Pandas offset alias for resampling (``"8s"`` for REFIT's 8-second
         sampling rate).  Set to ``None`` to skip resampling.
@@ -253,7 +262,7 @@ def preprocess_house(filepath: str,
         Preprocessed DataFrame with DatetimeIndex.
     """
     print(f"[preprocess] Loading {filepath} …")
-    df = load_refit_csv(filepath)
+    df = load_refit_csv(filepath, max_rows=max_rows)
     print(f"  Loaded {len(df):,} rows, columns: {list(df.columns)}")
 
     # Resample to a regular grid

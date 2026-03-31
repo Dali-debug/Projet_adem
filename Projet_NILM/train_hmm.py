@@ -200,6 +200,7 @@ def run_training(house_csv: str,
                  n_states_override: int | None = None,
                  sample_limit: int = 50_000,
                  models_dir: str | None = None,
+                 preprocess_max_rows: int | None = None,
                  appliance_n_states: dict[str, int] | None = None,
                  plot_preprocessing: bool = False,
                  preprocessing_plot_limit: int = 3000,
@@ -219,6 +220,8 @@ def run_training(house_csv: str,
         the per-appliance defaults in DEFAULT_N_STATES.
     sample_limit : int
         Maximum training samples per appliance.
+    preprocess_max_rows : int or None
+        If provided, read at most this many CSV rows before preprocessing.
     models_dir : str or None
         Where to save the models.
 
@@ -243,6 +246,7 @@ def run_training(house_csv: str,
     # 1. Load and preprocess
     df = preprocess_house(
         house_csv,
+        max_rows=preprocess_max_rows,
         plot_preprocessing=plot_preprocessing,
         preprocessing_plot_columns=appliance_columns,
         preprocessing_plots_dir=preprocessing_plots_dir,
@@ -305,6 +309,8 @@ if __name__ == "__main__":
                         help="Override number of states specifically for fridge.")
     parser.add_argument("--sample-limit", type=int, default=50_000,
                         help="Max training samples per appliance (default: 50000).")
+    parser.add_argument("--max-rows", type=int, default=None,
+                        help="Read at most this many CSV rows for quick tests.")
     parser.add_argument("--plot-preprocessing", action="store_true",
                         help="Save raw vs preprocessed signal plots.")
     parser.add_argument("--preprocessing-plot-limit", type=int, default=3000,
@@ -320,6 +326,7 @@ if __name__ == "__main__":
         target_appliances=args.appliances,
         n_states_override=args.n_states,
         sample_limit=args.sample_limit,
+        preprocess_max_rows=args.max_rows,
         appliance_n_states=appliance_n_states or None,
         plot_preprocessing=args.plot_preprocessing,
         preprocessing_plot_limit=args.preprocessing_plot_limit,

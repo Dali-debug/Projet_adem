@@ -302,6 +302,7 @@ def main():
             target_appliances=appliances,
             n_states_override=args.n_states,
             sample_limit=args.sample_limit,
+            preprocess_max_rows=args.limit,
             appliance_n_states=appliance_n_states or None,
             plot_preprocessing=args.plot_preprocessing,
             preprocessing_plot_limit=args.preprocessing_plot_limit,
