@@ -214,8 +214,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override number of HMM hidden states for all appliances."
     )
     parser.add_argument(
+        "--fridge-states", type=int, default=None,
+        help="Override number of HMM hidden states specifically for fridge."
+    )
+    parser.add_argument(
         "--sample-limit", type=int, default=50_000,
         help="Maximum training samples per appliance (default: 50000)."
+    )
+    parser.add_argument(
+        "--plot-preprocessing", action="store_true",
+        help="Generate raw vs preprocessed plots for train/test signals."
+    )
+    parser.add_argument(
+        "--preprocessing-plot-limit", type=int, default=3000,
+        help="Maximum samples to render in preprocessing plots."
+    )
+    parser.add_argument(
+        "--detect-events", action="store_true",
+        help="Detect state transitions and print multiple events per appliance."
+    )
+    parser.add_argument(
+        "--events-per-appliance", type=int, default=5,
+        help="Number of events to display and plot for each appliance."
+    )
+    parser.add_argument(
+        "--event-window", type=int, default=120,
+        help="Half-window size (in samples) around each detected event plot."
     )
     return parser
 
@@ -247,6 +271,10 @@ def main():
     test_house_number = parse_house_number(test_csv)
     appliances = args.appliances
 
+    appliance_n_states = {}
+    if args.fridge_states is not None:
+        appliance_n_states["fridge"] = args.fridge_states
+
     cross_house = train_house_number != test_house_number
 
     # Print setup header
@@ -274,6 +302,10 @@ def main():
             target_appliances=appliances,
             n_states_override=args.n_states,
             sample_limit=args.sample_limit,
+            appliance_n_states=appliance_n_states or None,
+            plot_preprocessing=args.plot_preprocessing,
+            preprocessing_plot_limit=args.preprocessing_plot_limit,
+            preprocessing_plot_tag="train",
         )
 
     # ---- Disaggregation ----
@@ -285,6 +317,11 @@ def main():
             limit=args.limit,
             plot=not args.no_plot,
             train_house_number=train_house_number,
+            plot_preprocessing=args.plot_preprocessing,
+            preprocessing_plot_limit=args.preprocessing_plot_limit,
+            detect_events=args.detect_events,
+            events_per_appliance=args.events_per_appliance,
+            event_window=args.event_window,
         )
 
         print_state_summary(results, appliances, test_house_number)

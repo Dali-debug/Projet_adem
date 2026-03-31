@@ -23,10 +23,9 @@ import numpy as np
 import pandas as pd
 
 from hmmlearn.hmm import GaussianHMM
-from sklearn.preprocessing import StandardScaler
 
 from preprocessing import preprocess_house
-from refit_metadata import get_appliance_column, parse_house_number, APPLIANCE_ALIASES
+from refit_metadata import get_appliance_column, parse_house_number
 
 # Default number of hidden states per appliance type
 DEFAULT_N_STATES = {
@@ -200,7 +199,12 @@ def run_training(house_csv: str,
                  target_appliances: list | None = None,
                  n_states_override: int | None = None,
                  sample_limit: int = 50_000,
-                 models_dir: str | None = None) -> dict:
+                 models_dir: str | None = None,
+                 appliance_n_states: dict[str, int] | None = None,
+                 plot_preprocessing: bool = False,
+                 preprocessing_plot_limit: int = 3000,
+                 preprocessing_plots_dir: str | None = None,
+                 preprocessing_plot_tag: str = "train") -> dict:
     """Full training pipeline: load REFIT data → train HMMs → save.
 
     Parameters
@@ -229,8 +233,22 @@ def run_training(house_csv: str,
     house_number = parse_house_number(house_csv)
     print(f"\n=== Training HMMs for House {house_number} ===")
 
+    appliance_columns = ["Aggregate"]
+    for appliance in target_appliances:
+        col = get_appliance_column(house_number, appliance)
+        if col is not None:
+            appliance_columns.append(col)
+    appliance_columns = sorted(set(appliance_columns))
+
     # 1. Load and preprocess
-    df = preprocess_house(house_csv)
+    df = preprocess_house(
+        house_csv,
+        plot_preprocessing=plot_preprocessing,
+        preprocessing_plot_columns=appliance_columns,
+        preprocessing_plots_dir=preprocessing_plots_dir,
+        preprocessing_plot_limit=preprocessing_plot_limit,
+        preprocessing_plot_tag=preprocessing_plot_tag,
+    )
 
     # 2. Train per appliance
     trained_models = {}
@@ -243,11 +261,12 @@ def run_training(house_csv: str,
             print(f"  [skip] Column '{col}' missing from DataFrame")
             continue
 
-        n_states = (
-            n_states_override
-            if n_states_override
-            else DEFAULT_N_STATES.get(appliance, 2)
-        )
+        if appliance_n_states and appliance in appliance_n_states:
+            n_states = appliance_n_states[appliance]
+        elif n_states_override:
+            n_states = n_states_override
+        else:
+            n_states = DEFAULT_N_STATES.get(appliance, 2)
         print(f"  Training '{appliance}' (column={col}, states={n_states}) …", end=" ")
 
         series = df[col]
@@ -282,13 +301,26 @@ if __name__ == "__main__":
                         help="Appliances to train (default: kettle microwave fridge tv).")
     parser.add_argument("--n-states", type=int, default=None,
                         help="Override number of HMM states for all appliances.")
+    parser.add_argument("--fridge-states", type=int, default=None,
+                        help="Override number of states specifically for fridge.")
     parser.add_argument("--sample-limit", type=int, default=50_000,
                         help="Max training samples per appliance (default: 50000).")
+    parser.add_argument("--plot-preprocessing", action="store_true",
+                        help="Save raw vs preprocessed signal plots.")
+    parser.add_argument("--preprocessing-plot-limit", type=int, default=3000,
+                        help="Max number of samples in preprocessing plots.")
     args = parser.parse_args()
+
+    appliance_n_states = {}
+    if args.fridge_states is not None:
+        appliance_n_states["fridge"] = args.fridge_states
 
     run_training(
         house_csv=args.house,
         target_appliances=args.appliances,
         n_states_override=args.n_states,
         sample_limit=args.sample_limit,
+        appliance_n_states=appliance_n_states or None,
+        plot_preprocessing=args.plot_preprocessing,
+        preprocessing_plot_limit=args.preprocessing_plot_limit,
     )

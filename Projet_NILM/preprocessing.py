@@ -10,8 +10,71 @@ Includes:
   - preprocess_house() : full preprocessing pipeline for one house CSV
 """
 
+import os
+import re
+
 import numpy as np
 import pandas as pd
+
+
+def _extract_house_number(filepath: str) -> str:
+    """Extract house number from a filename like 'House_3.csv'."""
+    name = os.path.basename(filepath)
+    match = re.search(r"house[_-]?(\d+)", name, flags=re.IGNORECASE)
+    if match:
+        return match.group(1)
+    return "unknown"
+
+
+def plot_preprocessing_signals(raw_df: pd.DataFrame,
+                               processed_df: pd.DataFrame,
+                               columns: list[str],
+                               house_number: str,
+                               plots_dir: str | None = None,
+                               limit: int = 3000,
+                               plot_tag: str = ""):
+    """Save side-by-side raw vs preprocessed signal plots for selected columns."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    if plots_dir is None:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        plots_dir = os.path.join(script_dir, "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    plot_raw = raw_df.iloc[:limit]
+    plot_processed = processed_df.iloc[:limit]
+    x = range(len(plot_processed))
+
+    tag = f"_{plot_tag}" if plot_tag else ""
+
+    for col in columns:
+        if col not in plot_raw.columns or col not in plot_processed.columns:
+            continue
+
+        fig, ax = plt.subplots(figsize=(12, 4))
+        ax.plot(x, plot_raw[col].values, color="gray", linewidth=0.8,
+                alpha=0.8, label="Raw")
+        ax.plot(x, plot_processed[col].values, color="teal", linewidth=1.0,
+                alpha=0.9, label="Preprocessed")
+        ax.set_title(
+            f"House {house_number} preprocessing{tag}: {col}"
+        )
+        ax.set_xlabel("Time (samples)")
+        ax.set_ylabel("Power (W)")
+        ax.grid(True, alpha=0.35)
+        ax.legend(loc="upper right")
+
+        safe_col = col.lower().replace(" ", "_")
+        out_path = os.path.join(
+            plots_dir,
+            f"house{house_number}{tag}_{safe_col}_preprocessing.png",
+        )
+        plt.tight_layout()
+        plt.savefig(out_path, dpi=110)
+        plt.close(fig)
+        print(f"  Preprocessing plot saved -> {out_path}")
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +214,12 @@ def preprocess_house(filepath: str,
                      hampel_sigmas: float = 3.0,
                      interp_method: str = "linear",
                      max_gap: int = 10,
-                     resample_rule: str = "8s") -> pd.DataFrame:
+                     resample_rule: str = "8s",
+                     plot_preprocessing: bool = False,
+                     preprocessing_plot_columns: list[str] | None = None,
+                     preprocessing_plots_dir: str | None = None,
+                     preprocessing_plot_limit: int = 3000,
+                     preprocessing_plot_tag: str = "") -> pd.DataFrame:
     """Load and fully preprocess a REFIT house CSV.
 
     Steps
@@ -193,6 +261,8 @@ def preprocess_house(filepath: str,
         print(f"  Resampling to {resample_rule} grid …")
         df = df.resample(resample_rule).mean()
 
+    raw_resampled = df.copy()
+
     # Apply Hampel filter + interpolation column by column
     print("  Applying Hampel filter and interpolation …")
     for col in df.columns:
@@ -203,6 +273,19 @@ def preprocess_house(filepath: str,
 
     # Final safety: clip to non-negative and fill any remaining NaN with 0
     df = df.clip(lower=0).fillna(0)
+
+    if plot_preprocessing:
+        columns = preprocessing_plot_columns or ["Aggregate"]
+        house_number = _extract_house_number(filepath)
+        plot_preprocessing_signals(
+            raw_df=raw_resampled,
+            processed_df=df,
+            columns=columns,
+            house_number=house_number,
+            plots_dir=preprocessing_plots_dir,
+            limit=preprocessing_plot_limit,
+            plot_tag=preprocessing_plot_tag,
+        )
 
     print(f"  Preprocessing complete — {len(df):,} samples, "
           f"{df.isna().sum().sum()} NaN remaining.")
